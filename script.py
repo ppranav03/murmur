@@ -1,4 +1,4 @@
-import time
+import time, asyncio
 from datetime import date
 
 import feedparser
@@ -11,8 +11,10 @@ from tracing import tracer
 
 FEED_URL = "https://techcrunch.com/feed/"
 MAX_ARTICLES = 5
-MAX_CHARS = 6000  # keeps each prompt well inside the model's 8192-token context
+MAX_CHARS = 6000
+MAX_PARALLEL = 3
 
+sem = asyncio.Semaphore(MAX_PARALLEL)
 
 def fetch_article_text(link):
     downloaded = fetch_url(link)
@@ -30,28 +32,36 @@ def with_retries(fn, *args, attempts=3, delay=2):
                 raise
             time.sleep(delay * attempt)
 
-@tracer.start_as_current_span("main")
-def main():
-    articles = feedparser.parse(FEED_URL)
-
-    summaries = []
-    for a in articles.entries:
-
-        if len(summaries) >= MAX_ARTICLES:
-            break
-        # print(a.link)
+async def summarize_article(link):
+    # The semaphore caps how many articles are in flight at once
+    async with sem:
         with tracer.start_as_current_span("article") as span:
-            span.set_attribute("article.link", a.link)
+            span.set_attribute("article.link", link)
+            # print(link)
             try:
-                text = with_retries(fetch_article_text, a.link)
+                # Both steps block, so run them in worker threads to keep the event loop free
+                text = await asyncio.to_thread(with_retries, fetch_article_text, link)
                 if not text:
-                    print("Skipped: couldn't extract text")
-                    continue
-                summary = with_retries(write_script, text[:MAX_CHARS])
+                    print(f"Skipped {link}: couldn't extract text")
+                    return None
+                return await asyncio.to_thread(with_retries, write_script, text[:MAX_CHARS])
             except Exception as e:
-                print(f"Skipped: {type(e).__name__}: {e}")
-                continue
-            summaries.append(summary)
+                print(f"Skipped {link}: {type(e).__name__}: {e}")
+                return None
+
+
+async def parse_articles(entries):
+    # gather keeps results in feed order, even though articles finish in any order
+    results = await asyncio.gather(*(summarize_article(a.link) for a in entries))
+    return [summary for summary in results if summary]
+
+
+@tracer.start_as_current_span("main")
+async def main():
+
+    articles = await asyncio.to_thread(feedparser.parse, FEED_URL)
+
+    summaries = await parse_articles(articles.entries[:MAX_ARTICLES])
 
     if not summaries:
         print("Couldn't extract any article text.")
@@ -62,8 +72,8 @@ def main():
     today_date = date.today()
 
     script = str(today_date) + "\n\n" + script
-    send_message(script)
+    await asyncio.to_thread(send_message, script)
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

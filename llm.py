@@ -1,15 +1,19 @@
 import re
 import sys
 
-from langchain_ollama import ChatOllama
+from dotenv import load_dotenv
+from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 
-llm = ChatOllama(
-    model="llama3.1",
-    temperature=0,
-    num_ctx=8192
-)
+load_dotenv()
 
+llm = ChatGroq(
+    model="openai/gpt-oss-120b",
+    temperature=0,
+    max_tokens=None,
+    reasoning_format="parsed",
+    timeout=60,
+)
 
 def clean_script(text):
     # Drop a leading preamble line like "Here's a TLDR summary:"
@@ -18,6 +22,9 @@ def clean_script(text):
     text = re.sub(r"^\s*#+\s*", "", text, flags=re.MULTILINE)
     text = re.sub(r"^\s*[-*•]\s+", "", text, flags=re.MULTILINE)
     text = re.sub(r"[*_]{1,3}", "", text)
+    # Replace Unicode hyphens and dashes that Windows consoles can't print
+    text = text.replace("‑", "-").replace("–", "-")
+    text = re.sub(r"\s*—\s*", ", ", text)
     return text.strip()
 
 
