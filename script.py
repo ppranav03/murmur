@@ -8,6 +8,7 @@ from llm import write_script
 from audio_generator import create_audio
 from telegram_sender import send_message
 from tracing import tracer
+from opentelemetry.trace import Status, StatusCode
 
 FEED_URL = "https://techcrunch.com/feed/"
 MAX_ARTICLES = 5
@@ -40,12 +41,16 @@ async def summarize_article(link):
             # print(link)
             try:
                 # Both steps block, so run them in worker threads to keep the event loop free
-                text = await asyncio.to_thread(with_retries, fetch_article_text, link)
+                with tracer.start_as_current_span("fetch"):          
+                    text = await asyncio.to_thread(with_retries, fetch_article_text, link)
                 if not text:
                     print(f"Skipped {link}: couldn't extract text")
                     return None
-                return await asyncio.to_thread(with_retries, write_script, text[:MAX_CHARS])
+                with tracer.start_as_current_span("summarize"):          
+                    return await asyncio.to_thread(with_retries, write_script, text[:MAX_CHARS])
             except Exception as e:
+                span.record_exception(e)
+                span.set_status(Status(StatusCode.Error, str(e)))
                 print(f"Skipped {link}: {type(e).__name__}: {e}")
                 return None
 

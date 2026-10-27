@@ -2,6 +2,7 @@ venv
 .venv
 experiments/
 __pycache__
-
+wav_files/
 .env
 *.wav
+CLAUDE.md
