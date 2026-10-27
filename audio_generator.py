@@ -9,9 +9,11 @@ def _pipeline():
     return pipeline
 
 def create_audio(input_str : str = """TLDR: Massage Guns
-
-Massage guns, also known as percussion massagers or power massagers, are handheld devices that use rapid vibrations to relieve muscle tension and pain. They typically feature interchangeable heads and adjustable speed settings.
+Massage guns, also known as percussion massagers or power massagers,
+are handheld devices that use rapid vibrations to relieve muscle tension and pain.
+They typically feature interchangeable heads and adjustable speed settings.
 """, filename: str = "output.wav"):
+    
     pipeline = _pipeline()
 
     print("Generating audio... (This will download the 300MB model on the first run)")

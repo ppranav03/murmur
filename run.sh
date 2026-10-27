@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
-
-source ./venv/Scripts/activate
-python script.py
+set -e
+cd "$(dirname "$0")"
+uv run python script.py
