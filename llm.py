@@ -1,9 +1,11 @@
 import re
 import sys
+from typing import Literal
 
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
+from pydantic import BaseModel, Field
 
 load_dotenv()
 
@@ -47,6 +49,35 @@ def write_script(user_text):
     chain = template | llm
     response = chain.invoke(prompt_parameters)
     return clean_script(response.content)
+
+
+class Post(BaseModel):
+    title: str
+    url: str
+    why: str = Field(description="One sentence on why this post matters")
+
+
+class Analysis(BaseModel):
+    sentiment: Literal["positive", "mixed", "negative"]
+    themes: list[str] = Field(description="3 to 5 short themes")
+    notable_posts: list[Post] = Field(description="Up to 3 posts taken from the input")
+
+
+# with_structured_output makes the model return an Analysis instead of free text
+analyst = llm.with_structured_output(Analysis)
+
+ANALYSIS_PROMPT = """You analyse what one source is saying about a topic today.
+Report the overall sentiment, the main themes, and up to 3 notable posts.
+Only cite posts that appear in the input, using their exact titles and URLs."""
+
+
+async def analyze_posts(topic, source, posts):
+    posts_text = "\n\n".join(f"{p['title']} ({p['url']})\n{p['text']}" for p in posts)
+    result = await analyst.ainvoke([
+        ("system", ANALYSIS_PROMPT),
+        ("user", f"Topic: {topic}\nSource: {source}\n\n{posts_text}"),
+    ])
+    return result.model_dump()
 
 
 if __name__ == "__main__":

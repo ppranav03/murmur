@@ -4,6 +4,7 @@ experiments/
 __pycache__
 wav_files/
 logs/
+langgraph-logs/
 
 .env
 *.wav

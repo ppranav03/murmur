@@ -8,11 +8,11 @@ import os
 
 current_dt = str(dt.datetime.now())
 current_dt = current_dt.replace(":", "")
-os.makedirs("logs", exist_ok=True)
+os.makedirs("langgraph-logs", exist_ok=True)
 
 provider = TracerProvider(resource=Resource.create({"service.name": "tech-feed-podcast"}))
 
-log_file = open(f"logs/{current_dt}-log.json", "a", encoding="utf-8")
+log_file = open(f"langgraph-logs/{current_dt}-log.json", "a", encoding="utf-8")
 provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter(out = log_file)))
 trace.set_tracer_provider(provider)
 
