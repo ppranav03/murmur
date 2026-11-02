@@ -31,18 +31,19 @@ async def run_source(name, topic, get_posts):
             
             if not posts:
                 # Nothing about this topic today. That's not an error.
-                return _result(name, "empty", start)
+                return _result(span, name, "empty", start)
 
             with tracer.start_as_current_span("analyze"):
                 analysis = await with_retries(analyze_posts, topic, name, posts)
-            return _result(name, "ok", start, post_count=len(posts), **analysis)
+            return _result(span, name, "ok", start, post_count=len(posts), **analysis)
 
         except Exception as e:
             span.record_exception(e)
             span.set_status(Status(StatusCode.ERROR, str(e)))
-            return _result(name, "failed", start, error=f"{type(e).__name__}: {e}")
+            return _result(span, name, "failed", start, error=f"{type(e).__name__}: {e}")
 
 
-def _result(name, status, start, **fields):
+def _result(span, name, status, start, **fields):
     latency_ms = int((time.perf_counter() - start) * 1000)
+    span.set_attribute("latency_ms", latency_ms)
     return {"source": name, "status": status, "latency_ms": latency_ms, **fields}
